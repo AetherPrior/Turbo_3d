@@ -5,37 +5,65 @@
 #include<conio.H>
 #include<graphics.h>
 
- double midx = 319;
- double midy = 239;
+#define midx 319;
+#define midy 239;
+
  double maxx;
  double maxy;
-void translate(double &x,double &y)
+ double cns = atan(-300.0/5);
+
+/*
+* Functions: 
+* void translate(double &, double&); -> translates to cartesian coordinates in 2D
+* void scale(double &, double &); -> scales values
+* void rot(double &, double &, double &); -> rotates about an axis by a certain angle
+* void z_s(double &, double &,double &); ->projects z onto a 2D screen
+* void callGenericProcess(double &, double &, double& , double []); -> function for clumping the above together
+*/
+class rotationClass
 {
- x+=maxx/2;
- y = 0-y;
- y+=maxy/2;
-}
-void scale(double &x, double &y)
-{
- //scales to 320,240 from 100,100
- x*=3.2;
- y*=3.2;
-}
-void rot(double &a, double &b,double th)
-{
- double a_t =a;
- double b_t = b;
- a = a_t*cos(th) - b_t*sin(th);
- b = a_t*sin(th) + b_t*cos(th);
-}
-double cns = atan(-300.0/5);
-void z_s(double &x,double &y, double &z)
-{
-  double d = z-300;
-  x -= 180*(atan(d/5) -cns);
-  y -= 120*(atan(d/5) -cns);
-//  scale(x,y);
-}
+public:
+	void translate(double &x,double &y)
+	{
+	 x+=maxx/2;
+	 y = 0-y;
+	 y+=maxy/2;
+	}
+	void scale(double &x, double &y)
+	{
+	 //scales to 320,240 from 100,100
+	 x*=3.2;
+	 y*=3.2;
+	}
+	void rot(double &a, double &b,double th)
+	{
+	 double a_t =a;
+	 double b_t = b;
+	 a = a_t*cos(th) - b_t*sin(th);
+	 b = a_t*sin(th) + b_t*cos(th);
+	}
+	
+	void z_s(double &x,double &y, double &z)
+	{
+	  double d = z-300;
+	  x -= 180*(atan(d/5) -cns);
+	  y -= 120*(atan(d/5) -cns);
+	//  scale(x,y);
+	}
+	void callGenericProcess(double &ti, double &tj, double &tk, double rot[])
+	{
+			rot(tj,tk,rt[2]);
+			rot(ti,tk,rt[0]);
+			rot(ti,tj,rt[1]);
+			 z_s(ti,tj,tk);
+			 scale(ti,tj);
+			 ti*=(2.0/4);
+			 tj*=(2.0/4);
+			translate(ti,tj);
+			putpixel(ti,tj,cl);
+	}
+} r1;
+
 //a struct of points that acts as a node
 struct pt
 {
@@ -177,6 +205,7 @@ void test2()
 			else if(tj == 0 && ti == 0) cl = 11;
 			else if(tj == 0 && tk == 0) cl = 13;
 			else cl=4;
+			/*
 			rot(tj,tk,rt[2]);
 			rot(ti,tk,rt[0]);
 			rot(ti,tj,rt[1]);
@@ -185,9 +214,11 @@ void test2()
 			 ti*=(2.0/4);
 			 tj*=(2.0/4);
 			translate(ti,tj);
+			*/
+			r1.callProcess(ti,tj,tk,rt);
 		//	setfillstyle(1,cl);
 	  //		bar(ti-4,tj-4,ti+4,tj+4);
-			putpixel(ti,tj,cl);
+			
 			p2.top = p2.top->next;
 		 }
 		 rt[2] += M_PI/30;
