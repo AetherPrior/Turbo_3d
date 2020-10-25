@@ -3,17 +3,90 @@
 #include<dos.h>
 #include<ctype.h>
 #include<conio.H>
-#include<graphics.h>
+int segment = 0xa000;
+int global_plane = 0x4000;
+int flag = 0;
+//using write mode 2 produces choppy code, try write mode 0 later :)
+//with mode 0, i can copy screen to screen, and rid myself of clearscreen!
+void putpixel(int x, int y, int c)
+{
 
+
+ long offsets =((long)y << 6)+ ((long)y << 4)
+				+ ((long)x >> 3);
+
+
+ int mask = 0x8000 >> (x & 0x0007);
+ if(mask != global_plane)
+ {
+ _asm{
+		mov dx, 0x3ce
+		mov ax,[mask]
+		or ax, 8
+		out dx, ax
+		mov ax, 0x0205
+		out dx, ax
+	}
+		 global_plane = mask;
+ }
+
+ _asm{
+
+	push [segment]
+	 pop ds
+	 mov si, WORD [offsets]
+	mov al,byte [si] //dummy read for values to latch onto vga registers
+	mov al, byte [c]
+	mov [si], al;
+ }
+ outport(0x3ce, 0x0005);     //reset settings to default
+  outport(0x3ce, 0xff08);
+
+}
+void clearscreen(){
+int segment = 0xa000;
+_asm{
+	//push ax
+	//push cx
+	pusha
+	mov es, segment
+	xor di,di
+	mov dx, 0x3ce
+	xor ah,ah
+	mov al,0
+	out dx,ax     //write 0
+	mov ax,0x0f01 //for all bitplanes in mode 0
+	out dx,ax
+	mov cx,19200
+	rep stosw     //for all words in video mem, latch them and write to them! = 80x640/2 = 19200
+	mov ax,0x0005
+	out dx,ax
+	popa
+	//pop cx
+	//pop ax
+	}
+}
+void fillscreen(unsigned char c)
+{
+  asm{
+	mov ax,0x600   //scroll up and clear
+	xor cx,cx      //upper row number and column number is 0
+	mov dx,0x1d4f  //lower row number is 29, column is 79, since 640x480
+	mov bh,[c]     //color to fill
+	int 0x10       //call interrupt
+  }
+}
  double midx = 319;
  double midy = 239;
  double maxx;
  double maxy;
-void translate(double &x,double &y)
+void translate(double &x,double &y,double offsetx = 0, double offsety = 0)
 {
  x+=maxx/2;
+ x+=offsetx;
  y = 0-y;
  y+=maxy/2;
+ y+=offsety;
 }
 void scale(double &x, double &y)
 {
@@ -78,26 +151,10 @@ int max(int a,int b,int c)
 }
 void test2()
 {
- setviewport(midx+100,0,2*midx,2*midy,1);
- setfillstyle(1,DARKGRAY);
- bar3d(0,0,getmaxx(),getmaxy(),0,0);
- setviewport(0, midy+100,midx+100,2*midy,0);
- setfillstyle(1,LIGHTGRAY);
- bar3d(0,0,midx+100,getmaxy(),0,0);
- setviewport(1,1,midx+99,10,1);
- outtextxy((midx+99)/2-20,0,"GRAPH");
- setviewport(1,10,midx+99,midy+99,1);
 
  maxx = midx + 99;
  maxy = midy + 99;
  stack p,p2;
-// fstream pts("in.dat",ios::binary|ios::out|ios::in|ios::trunc);
- if(graphresult() != 0)
-  {
-   cout<<"error in viewport";
-   return ;
-
-  }
  double i,j,k;
  double ti = i,
  tj = j,
@@ -105,65 +162,24 @@ void test2()
  int cl;
  double rt[3] = {0,20,30};
  double expval;
- setcolor(15);
- outtextxy(maxx/2-32,maxy/2,"LOADING...");
- setcolor(1);
+
   for(i = -50; i<50;  i+=1)
   for(j = -50; j<50; j+=1)
    for(k =-50; k<50; k+=1)
    {
-	 //lhs of expression goes here
 	  expval = 54*sin(i)*sin(j)*sin(k);
 	  if(expval <55 && expval >53/*rhs of expression(put a range)*/
 		  ||(i == 0 && k== 0 ) || (j == 0 && k == 0) || (i == 0 && j == 0))
 		{
-		 // pts.write((char*)&i,sizeof(double));
-		 // pts.write((char*)&j,sizeof(double));
-		 // pts.write((char*)&k,sizeof(double));
 			 p.insert((int)i,(int)j,(int)k);
 		}
    }
- clearviewport();
- outtext("done");
-// long int size = pts.tellp();
-// pts.seekg(0);
  while(1){
    p2 = p;
- /*		if(kbhit())
-		 {
-		  cleardevice();
-		  char ch = tolower(getch());
-		  switch(ch)
-		   {
-			case 'a':
-			  rt[2] -=M_PI/30;
-			  break;
-			case 'd':
-			  rt[2] +=M_PI/30;
-			  break;
-			case 'w':
-			  rt[1] +=M_PI/30;
-			  break;
-			case 's':
-			  rt[1] -= M_PI/30;
-			  break;
-			case 'q':
-			  rt[0] +=M_PI/30;
-			  break;
-			case 'c':
-			  rt[0] -= M_PI/30;
-			  break;
-
-			default:
-			  break;
-		   } }    */
 		if(kbhit())
 		   break;
 		 while(p2.top != NULL)//pts.tellg()<size)
 		 {
-		   //	pts.read((char*)&ti,sizeof(double));
-		  //	pts.read((char*)&tj,sizeof(double));
-		  //	pts.read((char*)&tk,sizeof(double));
 			ti = p2.top->x;
 			tj = p2.top->y;
 			tk = p2.top->z;
@@ -185,33 +201,25 @@ void test2()
 			 ti*=(2.0/4);
 			 tj*=(2.0/4);
 			translate(ti,tj);
-		//	setfillstyle(1,cl);
-	  //		bar(ti-4,tj-4,ti+4,tj+4);
 			putpixel(ti,tj,cl);
 			p2.top = p2.top->next;
 		 }
-		 rt[2] += M_PI/30;
-		 rt[0] += M_PI/40;
-		 rt[1] += M_PI/50;
+		 rt[2] += M_PI/150;
+		 rt[0] += M_PI/200;
+		 rt[1] += M_PI/250;
 			 if(rt[2] >= 1000*M_PI)
 				 rt[2] = 0;
 			 else if( rt[1] >= 1000*M_PI)
 			 rt[1] = 0;
 			 else if( rt[0] >= 1000*M_PI)
 			 rt[0] = 0;
-	   //	 pts.seekg(ios::beg);
-	   //	 pts.seekp(ios::beg);
-		 delay(30);
-	 //    getch();
-		 clearviewport();
+		 clearscreen();
   }
-  //pts.close();
  }
 int main()
 {
- int gd= 0;
- int gm;
- initgraph(&gd,&gm,"C:\\TURBOC3\\BGI");
+ asm mov ax,0x0012
+ asm int 0x10
  test2();
  /*
  double xyrot = 0; //radians
@@ -227,6 +235,5 @@ int main()
  translate(x,y);
  //endproc
  */
- closegraph();
  return 1;
 }
